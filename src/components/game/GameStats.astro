@@ -1,0 +1,65 @@
+---
+import type { GameState, Player } from '~/lib/game/types';
+import { getAverageDiceValue } from '~/lib/game/gameLogic';
+
+interface Props {
+  gameState: GameState;
+}
+
+const { gameState } = Astro.props;
+---
+
+<div class="game-stats bg-white dark:bg-gray-800 rounded-lg shadow-lg p-6 max-w-4xl mx-auto mb-6">
+  <h3 class="text-xl font-bold mb-4 text-center text-gray-700 dark:text-white">Game Statistics</h3>
+  
+  <!-- Total Rolls -->
+  <div class="text-center mb-6">
+    <div class="text-2xl font-bold text-blue-600 dark:text-blue-400">
+      {gameState.totalRolls}
+    </div>
+    <div class="text-sm text-gray-600 dark:text-white">Total Dice Rolls</div>
+  </div>
+  
+  <!-- Player Statistics -->
+  <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+    {gameState.players.map((player) => (
+      <div class="p-4 border border-gray-200 dark:border-gray-700 rounded-lg">
+        <div class="flex items-center space-x-2 mb-3">
+          <div 
+            class="w-4 h-4 rounded-full border border-white dark:border-gray-800"
+            style={`background-color: ${player.color}`}
+          ></div>
+          <span class="font-semibold text-gray-700 dark:text-white">{player.name}</span>
+          {player.isCPU && <span class="text-xs text-gray-500 dark:text-white">CPU</span>}
+        </div>
+        
+        <div class="space-y-2 text-sm">
+          <div class="flex justify-between">
+            <span class="text-gray-600 dark:text-white">Total Rolls:</span>
+            <span class="font-medium text-gray-700 dark:text-white">{player.stats.totalRolls}</span>
+          </div>
+          
+          <div class="flex justify-between">
+            <span class="text-gray-600 dark:text-white">Snake Bites:</span>
+            <span class="font-medium text-red-600 dark:text-red-400">{player.stats.snakeBites}</span>
+          </div>
+          
+          <div class="flex justify-between">
+            <span class="text-gray-600 dark:text-white">Ladder Climbs:</span>
+            <span class="font-medium text-green-600 dark:text-green-400">{player.stats.ladderClimbs}</span>
+          </div>
+          
+          <div class="flex justify-between">
+            <span class="text-gray-600 dark:text-white">Avg Dice Value:</span>
+            <span class="font-medium text-gray-700 dark:text-white">{getAverageDiceValue(player).toFixed(1)}</span>
+          </div>
+          
+          <div class="flex justify-between">
+            <span class="text-gray-600 dark:text-white">Current Position:</span>
+            <span class="font-medium text-gray-700 dark:text-white">{player.position}</span>
+          </div>
+        </div>
+      </div>
+    ))}
+  </div>
+</div> 

@@ -1,0 +1,115 @@
+---
+import type { GameState, Player } from '~/lib/game/types';
+
+interface Props {
+  gameState: GameState;
+}
+
+const { gameState } = Astro.props;
+
+const currentPlayer = gameState.players[gameState.currentPlayerIndex];
+---
+
+{!currentPlayer ? (
+  <div class="text-center text-gray-500 dark:text-white py-8">
+    No players yet. Please start a game!
+  </div>
+) : (
+  <div class="game-status bg-white dark:bg-gray-800 rounded-lg shadow-lg p-6 max-w-4xl mx-auto mb-6">
+    <div class="grid grid-cols-1 md:grid-cols-5 gap-6">
+      <!-- Current Player -->
+      <div class="text-center">
+        <h3 class="text-lg font-semibold mb-2 text-gray-700 dark:text-white">Current Player</h3>
+        <div class="flex items-center justify-center space-x-2">
+          <div 
+            class="w-6 h-6 rounded-full border-2 border-white dark:border-gray-800"
+            style={`background-color: ${currentPlayer.color}`}
+          ></div>
+          <span class="font-medium text-gray-700 dark:text-white">{currentPlayer.name}</span>
+          {currentPlayer.isCPU && <span class="text-sm text-gray-500 dark:text-white">(CPU)</span>}
+        </div>
+        <p class="text-sm text-gray-600 dark:text-white mt-1">
+          Position: {currentPlayer.position}
+        </p>
+      </div>
+      
+      <!-- Dice Value -->
+      <div class="text-center">
+        <h3 class="text-lg font-semibold mb-2 text-gray-700 dark:text-white">Last Roll</h3>
+        <div class="text-3xl font-bold text-blue-600 dark:text-blue-400">
+          {gameState.diceValue || '-'}
+        </div>
+      </div>
+      
+      <!-- Dice Configuration -->
+      <div class="text-center">
+        <h3 class="text-lg font-semibold mb-2 text-gray-700 dark:text-white">Dice Range</h3>
+        <div class="text-lg font-bold text-purple-600 dark:text-purple-400">
+          {gameState.diceMin} - {gameState.diceMax}
+        </div>
+        <p class="text-xs text-gray-500 dark:text-white mt-1">
+          {gameState.diceMin < 0 ? 'Can move backward' : 'Forward only'}
+        </p>
+      </div>
+      
+      <!-- Board Elements -->
+      <div class="text-center">
+        <h3 class="text-lg font-semibold mb-2 text-gray-700 dark:text-white">Board Elements</h3>
+        <div class="flex justify-center space-x-4">
+          <div>
+            <div class="text-lg font-bold text-red-600 dark:text-red-400">
+              {gameState.snakeCount || gameState.snakes.length}
+            </div>
+            <p class="text-xs text-gray-500 dark:text-white">Snakes</p>
+          </div>
+          <div>
+            <div class="text-lg font-bold text-green-600 dark:text-green-400">
+              {gameState.ladderCount || gameState.ladders.length}
+            </div>
+            <p class="text-xs text-gray-500 dark:text-white">Ladders</p>
+          </div>
+        </div>
+      </div>
+      
+      <!-- Game Status -->
+      <div class="text-center">
+        <h3 class="text-lg font-semibold mb-2 text-gray-700 dark:text-white">Game Status</h3>
+        <div class={`inline-block px-3 py-1 rounded-full text-sm font-medium ${
+          gameState.gameStatus === 'playing' ? 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200' :
+          gameState.gameStatus === 'finished' ? 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200' :
+          'bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200'
+        }`}>
+          {gameState.gameStatus === 'playing' ? 'In Progress' :
+           gameState.gameStatus === 'finished' ? 'Game Over' : 'Setting Up'}
+        </div>
+      </div>
+    </div>
+    
+    <!-- Player List -->
+    <div class="mt-6">
+      <h3 class="text-lg font-semibold mb-3 text-gray-700 dark:text-white">Players</h3>
+      <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3">
+        {gameState.players.map((player, index) => (
+          <div class={`p-3 rounded-lg border-2 ${
+            index === gameState.currentPlayerIndex ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/20' :
+            player.isWinner ? 'border-green-500 bg-green-50 dark:bg-green-900/20' :
+            'border-gray-200 dark:border-gray-700'
+          }`}>
+            <div class="flex items-center space-x-2 mb-1">
+              <div 
+                class="w-4 h-4 rounded-full border border-white dark:border-gray-800"
+                style={`background-color: ${player.color}`}
+              ></div>
+              <span class="font-medium text-sm text-gray-700 dark:text-white">{player.name}</span>
+              {player.isCPU && <span class="text-xs text-gray-500 dark:text-white">CPU</span>}
+            </div>
+            <p class="text-xs text-gray-600 dark:text-white">
+              Position: {player.position}
+              {player.isWinner && <span class="text-green-600 dark:text-green-400 font-semibold"> - Winner!</span>}
+            </p>
+          </div>
+        ))}
+      </div>
+    </div>
+  </div>
+)} 

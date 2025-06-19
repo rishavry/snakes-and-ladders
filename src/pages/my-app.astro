@@ -1,0 +1,73 @@
+---
+import Layout from '~/layouts/PageLayout.astro';
+import Hero from '~/components/widgets/Hero.astro';
+import Content from '~/components/widgets/Content.astro';
+import Steps from '~/components/widgets/Steps.astro';
+
+const metadata = {
+  title: 'Snakes and Ladders - A Classic Board Game',
+  description: 'Play the classic Snakes and Ladders game online with friends and family',
+};
+---
+
+<Layout metadata={metadata}>
+  <Hero
+    actions={[
+      {
+        variant: 'primary',
+        text: 'Play Now',
+        href: '/my-app/snakes-and-ladders-game',
+        icon: 'tabler:player-play',
+      },
+      { text: 'How to Play', href: '#how-to-play' },
+    ]}
+    image={{ src: '~/assets/images/hero-image.png', alt: 'Snakes and Ladders Game' }}
+  >
+    <Fragment slot="title">
+      Play <span class="text-accent dark:text-white">Snakes and Ladders</span> Online
+    </Fragment>
+
+    <Fragment slot="subtitle">
+      Experience the classic board game in a modern digital format. Play with friends, family, or challenge CPU opponents in this timeless game of chance and strategy.
+    </Fragment>
+  </Hero>
+
+  <Content
+    id="how-to-play"
+    tagline="How to Play"
+    title="Game Rules and Instructions"
+    items={[
+      {
+        title: 'Basic Rules',
+        description: 'Players take turns rolling a dice and moving their pieces across the board. The first player to reach the final square wins.',
+      },
+      {
+        title: 'Snakes and Ladders',
+        description: 'Land on a ladder to climb up, but watch out for snakes that will slide you down!',
+      },
+      {
+        title: 'Multiplayer',
+        description: 'Play with 2-5 players locally or challenge CPU opponents with different difficulty levels.',
+      },
+    ]}
+    image={{
+      src: 'https://images.unsplash.com/photo-1611996575749-79a3a250f948?ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D&auto=format&fit=crop&w=2070&q=80',
+      alt: 'Game Board',
+    }}
+  >
+    <Fragment slot="content">
+      <h3 class="text-2xl font-bold tracking-tight dark:text-white sm:text-3xl mb-2">Ready to Play?</h3>
+      Click "Play Now" to start your game!
+    </Fragment>
+  </Content>
+
+  <div id="game-board" class="py-16 px-4 mx-auto max-w-6xl">
+    <!-- Game board will be implemented here -->
+    <div class="text-center">
+      <h2 class="text-3xl font-bold mb-8">Game Board Coming Soon!</h2>
+      <p class="text-lg text-gray-600 dark:text-gray-400">
+        We're working hard to bring you the best Snakes and Ladders experience.
+      </p>
+    </div>
+  </div>
+</Layout> 

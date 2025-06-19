@@ -1,0 +1,123 @@
+---
+interface Props {
+  value: number;
+  isRolling?: boolean;
+  onRoll?: () => void;
+  disabled?: boolean;
+}
+
+const { value, isRolling = false, disabled = false } = Astro.props;
+---
+
+<div class="dice-container text-center">
+  <div 
+    class={`dice w-20 h-20 bg-gray-100 dark:bg-black border-2 border-gray-300 dark:border-gray-600 rounded-lg shadow-lg flex items-center justify-center text-3xl font-bold cursor-pointer transition-all duration-300 ${
+      isRolling ? 'animate-bounce' : 'hover:scale-110'
+    } ${disabled ? 'opacity-50 cursor-not-allowed' : ''}`}
+    data-dice-value={value}
+  >
+    <span class="text-gray-800 dark:text-black">{value === 0 ? '?' : value}</span>
+  </div>
+  
+  {!disabled && (
+    <button 
+      class="mt-4 px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-semibold transition-colors duration-200 disabled:opacity-50 disabled:cursor-not-allowed shadow-lg"
+      disabled={isRolling}
+      id="roll-dice-btn"
+    >
+      {isRolling ? 'Rolling...' : 'Roll Dice'}
+    </button>
+  )}
+  
+  {value > 0 && (
+    <div class="mt-2 text-sm text-gray-600 dark:text-gray-400">
+      Last roll: {value}
+    </div>
+  )}
+</div>
+
+<script>
+  // Dice interaction logic
+  function updateDice(value, isRolling = false) {
+    const diceElement = document.querySelector('.dice');
+    const rollButton = document.getElementById('roll-dice-btn');
+    const lastRollText = document.querySelector('.dice-container > div:last-child');
+    
+    if (diceElement) {
+      diceElement.setAttribute('data-dice-value', value.toString());
+      const diceText = diceElement.querySelector('span');
+      if (diceText) {
+        diceText.textContent = value === 0 ? '?' : value.toString();
+      }
+      
+      if (isRolling) {
+        diceElement.classList.add('animate-bounce');
+      } else {
+        diceElement.classList.remove('animate-bounce');
+      }
+    }
+    
+    if (rollButton) {
+      rollButton.disabled = isRolling;
+      rollButton.textContent = isRolling ? 'Rolling...' : 'Roll Dice';
+    }
+    
+    if (lastRollText && value > 0) {
+      lastRollText.textContent = `Last roll: ${value}`;
+      lastRollText.style.display = 'block';
+    } else if (lastRollText && value === 0) {
+      lastRollText.style.display = 'none';
+    }
+  }
+  
+  // Expose update function globally
+  window.updateDice = updateDice;
+  
+  // Add click handler for dice
+  document.addEventListener('DOMContentLoaded', () => {
+    const diceElement = document.querySelector('.dice');
+    if (diceElement) {
+      diceElement.addEventListener('click', () => {
+        const rollButton = document.getElementById('roll-dice-btn');
+        if (rollButton && !rollButton.disabled) {
+          rollButton.click();
+        }
+      });
+    }
+  });
+</script>
+
+<style>
+  .dice {
+    background: linear-gradient(145deg, #f3f4f6, #e5e7eb);
+    box-shadow: 5px 5px 10px #d1d5db, -5px -5px 10px #ffffff;
+  }
+  
+  .dark .dice {
+    background: #000000 !important;
+    box-shadow: 5px 5px 10px #000000, -5px -5px 10px #333333;
+  }
+  
+  @keyframes bounce {
+    0%, 20%, 53%, 80%, 100% {
+      transform: translate3d(0,0,0);
+    }
+    40%, 43% {
+      transform: translate3d(0, -30px, 0);
+    }
+    70% {
+      transform: translate3d(0, -15px, 0);
+    }
+    90% {
+      transform: translate3d(0, -4px, 0);
+    }
+  }
+  
+  .animate-bounce {
+    animation: bounce 1s infinite;
+  }
+  
+  .dice:hover:not(.opacity-50) {
+    transform: scale(1.1);
+  }
+</style> 

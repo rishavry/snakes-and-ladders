@@ -1,0 +1,6 @@
+- Use only the frameworks and technologies in the Astro Wind repository.
+- Stick to TypeScript for clean, reliable code.
+- Use Tailwind CSS for styling—no other CSS frameworks.
+- Only use existing Tabler icons; don’t add new ones.
+
+

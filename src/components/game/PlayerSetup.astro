@@ -1,0 +1,333 @@
+---
+import type { GameSettings } from '~/lib/game/types';
+
+interface Props {
+  settings: GameSettings;
+}
+
+const { settings } = Astro.props;
+
+const playerColors = [
+  '#ef4444', // red
+  '#3b82f6', // blue
+  '#10b981', // green
+  '#f59e0b', // yellow
+  '#8b5cf6', // purple
+];
+---
+
+<div class="player-setup bg-white dark:bg-gray-800 rounded-lg shadow-lg p-6 max-w-2xl mx-auto">
+  <h2 class="text-2xl font-bold mb-6 text-center">Game Setup</h2>
+  
+  <div class="space-y-6">
+    <!-- Dice Configuration -->
+    <div>
+      <label class="block text-sm font-medium mb-4">Dice Configuration</label>
+      <div class="grid grid-cols-2 gap-4">
+        <div>
+          <label class="block text-xs text-gray-600 dark:text-gray-400 mb-1">Minimum Dice Value</label>
+          <input 
+            type="number" 
+            id="dice-min"
+            min="-99" 
+            max="99" 
+            value={settings.diceMin || 1}
+            class="w-full p-2 border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700"
+            placeholder="1"
+          />
+        </div>
+        <div>
+          <label class="block text-xs text-gray-600 dark:text-gray-400 mb-1">Maximum Dice Value</label>
+          <input 
+            type="number" 
+            id="dice-max"
+            min="-99" 
+            max="99" 
+            value={settings.diceMax || 6}
+            class="w-full p-2 border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700"
+            placeholder="6"
+          />
+        </div>
+      </div>
+      <p class="text-xs text-gray-500 dark:text-gray-400 mt-2">
+        Min: -99 to 99, Max: -99 to 99. Negative values move players backward.
+      </p>
+    </div>
+
+    <!-- Board Configuration -->
+    <div>
+      <label class="block text-sm font-medium mb-4">Board Configuration</label>
+      <div class="grid grid-cols-2 gap-4">
+        <div>
+          <label class="block text-xs text-gray-600 dark:text-gray-400 mb-1">Number of Snakes</label>
+          <input 
+            type="number" 
+            id="snake-count"
+            min="0" 
+            max="20" 
+            value="8"
+            class="w-full p-2 border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700"
+            placeholder="8"
+          />
+        </div>
+        <div>
+          <label class="block text-xs text-gray-600 dark:text-gray-400 mb-1">Number of Ladders</label>
+          <input 
+            type="number" 
+            id="ladder-count"
+            min="0" 
+            max="20" 
+            value="8"
+            class="w-full p-2 border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700"
+            placeholder="8"
+          />
+        </div>
+      </div>
+      <p class="text-xs text-gray-500 dark:text-gray-400 mt-2">
+        Set the number of snakes and ladders on the board (0-20 each).
+      </p>
+    </div>
+
+    <!-- Player Configuration -->
+    <div>
+      <label class="block text-sm font-medium mb-4">Configure Players (2-5 players)</label>
+      <div id="player-config" class="space-y-4">
+        {Array.from({ length: 5 }, (_, i) => (
+          <div class={`player-row p-4 border rounded-lg border-gray-200 dark:border-gray-700 hidden`}>
+            <div class="flex items-center space-x-4">
+              <div class="w-6 h-6 rounded-full" style={`background-color: ${playerColors[i]}`}></div>
+              <input 
+                type="text" 
+                placeholder={`Player ${i + 1}`}
+                value=""
+                class="flex-1 p-2 border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700"
+                data-player-index={i}
+                disabled={false}
+              />
+              <select 
+                class="p-2 border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700"
+                data-player-index={i}
+                disabled={false}
+              >
+                <option value="human" selected>Human</option>
+                <option value="cpu">CPU</option>
+              </select>
+              <button 
+                type="button"
+                class="px-3 py-1 text-sm bg-red-500 hover:bg-red-600 text-white rounded"
+                data-remove-player
+                data-player-index={i}
+                disabled={false}
+              >
+                Remove
+              </button>
+            </div>
+          </div>
+        ))}
+      </div>
+      
+      <button 
+        id="add-player-btn"
+        class="mt-4 px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg font-medium transition-colors duration-200"
+      >
+        Add Player
+      </button>
+    </div>
+    
+    <!-- Start Game Button -->
+    <button 
+      id="start-game-btn"
+      class="w-full py-3 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-lg transition-colors duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
+      disabled={true}
+    >
+      Need at least 2 players
+    </button>
+  </div>
+</div>
+
+<script>
+  // Player setup logic
+  let activePlayerCount = 0;
+  const maxPlayers = 5;
+  
+  function setupEventListeners() {
+    // Add player button
+    const addPlayerBtn = document.getElementById('add-player-btn');
+    if (addPlayerBtn) {
+      addPlayerBtn.onclick = () => {
+        addPlayer();
+      };
+    }
+    
+    // Remove player buttons - use event delegation
+    document.addEventListener('click', handleRemovePlayerClick);
+    
+    // Start game button
+    const startGameBtn = document.getElementById('start-game-btn');
+    if (startGameBtn) {
+      startGameBtn.onclick = () => {
+        if (activePlayerCount >= 2) {
+          const { players, diceMin, diceMax, snakeCount, ladderCount } = getPlayerSettings();
+          
+          // Validate that we have at least 2 players
+          if (players.length < 2) {
+            alert('You need at least 2 players to start the game!');
+            return;
+          }
+          
+          // Dispatch custom event with player data
+          const event = new CustomEvent('startGame', { detail: { players, diceMin, diceMax, snakeCount, ladderCount } });
+          window.dispatchEvent(event);
+        } else {
+          alert('You need at least 2 players to start the game!');
+        }
+      };
+    }
+  }
+  
+  function handleRemovePlayerClick(e) {
+    if (e.target.matches('[data-remove-player]')) {
+      const index = parseInt(e.target.getAttribute('data-player-index'));
+      removePlayer(index);
+    }
+  }
+  
+  function updatePlayerRows() {
+    const playerRows = document.querySelectorAll('.player-row');
+    const addPlayerBtn = document.getElementById('add-player-btn');
+    const startGameBtn = document.getElementById('start-game-btn');
+    
+    playerRows.forEach((row, index) => {
+      const isActive = index < activePlayerCount;
+      
+      if (isActive) {
+        row.classList.remove('hidden');
+        row.classList.add('border-blue-300', 'bg-blue-50', 'dark:bg-blue-900/20');
+      } else {
+        row.classList.add('hidden');
+        row.classList.remove('border-blue-300', 'bg-blue-50', 'dark:bg-blue-900/20');
+        
+        // Clear the data for hidden rows
+        const nameInput = row.querySelector('input');
+        const typeSelect = row.querySelector('select');
+        nameInput.value = '';
+        typeSelect.value = 'human';
+      }
+    });
+    
+    // Update add player button
+    if (addPlayerBtn) {
+      addPlayerBtn.disabled = activePlayerCount >= maxPlayers;
+      addPlayerBtn.textContent = activePlayerCount >= maxPlayers ? 'Max Players Reached' : 'Add Player';
+    }
+    
+    // Update start game button
+    if (startGameBtn) {
+      startGameBtn.disabled = activePlayerCount < 2;
+      startGameBtn.textContent = activePlayerCount < 2 ? 'Need at least 2 players' : 'Start Game';
+    }
+  }
+  
+  function addPlayer() {
+    if (activePlayerCount < maxPlayers) {
+      activePlayerCount++;
+      updatePlayerRows();
+    }
+  }
+  
+  function removePlayer(index) {
+    if (activePlayerCount > 0 && index < activePlayerCount) {
+      // Clear the player data for the removed player
+      const row = document.querySelector(`[data-player-index="${index}"]`).closest('.player-row');
+      const nameInput = row.querySelector('input');
+      const typeSelect = row.querySelector('select');
+      
+      nameInput.value = '';
+      typeSelect.value = 'human';
+      
+      // Hide the removed player row
+      row.classList.add('hidden');
+      row.classList.remove('border-blue-300', 'bg-blue-50', 'dark:bg-blue-900/20');
+      
+      // Shift remaining players down to fill the gap
+      for (let i = index; i < activePlayerCount - 1; i++) {
+        const currentRow = document.querySelector(`[data-player-index="${i}"]`).closest('.player-row');
+        const nextRow = document.querySelector(`[data-player-index="${i + 1}"]`).closest('.player-row');
+        
+        const currentName = currentRow.querySelector('input').value;
+        const currentType = currentRow.querySelector('select').value;
+        const nextName = nextRow.querySelector('input').value;
+        const nextType = nextRow.querySelector('select').value;
+        
+        currentRow.querySelector('input').value = nextName;
+        currentRow.querySelector('select').value = nextType;
+        nextRow.querySelector('input').value = currentName;
+        nextRow.querySelector('select').value = currentType;
+      }
+      
+      activePlayerCount--;
+      updatePlayerRows();
+    }
+  }
+  
+  function getPlayerSettings() {
+    const players = [];
+    for (let i = 0; i < activePlayerCount; i++) {
+      const row = document.querySelector(`[data-player-index="${i}"]`).closest('.player-row');
+      const nameInput = row.querySelector('input');
+      const typeSelect = row.querySelector('select');
+      
+      const name = nameInput.value.trim() || `Player ${i + 1}`;
+      const isCPU = typeSelect.value === 'cpu';
+      
+      players.push({
+        id: i,
+        name: isCPU ? `${name} (CPU)` : name,
+        color: ['#ef4444', '#3b82f6', '#10b981', '#f59e0b', '#8b5cf6'][i],
+        isCPU,
+        position: 1,
+        isWinner: false,
+        isActive: true,
+      });
+    }
+    
+    // Get dice configuration
+    const diceMinInput = document.getElementById('dice-min');
+    const diceMaxInput = document.getElementById('dice-max');
+    
+    let diceMin = parseInt(diceMinInput?.value || '1');
+    let diceMax = parseInt(diceMaxInput?.value || '6');
+    
+    // Validate dice values
+    diceMin = Math.max(-99, Math.min(99, diceMin));
+    diceMax = Math.max(-99, Math.min(99, diceMax));
+    
+    // Ensure min <= max
+    if (diceMin > diceMax) {
+      [diceMin, diceMax] = [diceMax, diceMin];
+    }
+    
+    // Get board configuration
+    const snakeCountInput = document.getElementById('snake-count');
+    const ladderCountInput = document.getElementById('ladder-count');
+    
+    let snakeCount = parseInt(snakeCountInput?.value || '8');
+    let ladderCount = parseInt(ladderCountInput?.value || '8');
+    
+    // Validate board element counts
+    snakeCount = Math.max(0, Math.min(20, snakeCount));
+    ladderCount = Math.max(0, Math.min(20, ladderCount));
+    
+    return { players, diceMin, diceMax, snakeCount, ladderCount };
+  }
+  
+  // Set up event listeners immediately
+  setupEventListeners();
+  updatePlayerRows();
+  
+  // Also set up on DOMContentLoaded as fallback
+  document.addEventListener('DOMContentLoaded', () => {
+    setupEventListeners();
+    updatePlayerRows();
+  });
+</script>

@@ -1,0 +1,891 @@
+---
+import type { GameState } from '~/lib/game/types';
+import { isSnakePosition, isLadderPosition, getSnakeEnd, getLadderEnd } from '~/lib/game/gameLogic';
+
+interface Props {
+  gameState: GameState;
+  showSnakes?: boolean;
+  showLadders?: boolean;
+}
+
+const { gameState, showSnakes: propShowSnakes, showLadders: propShowLadders } = Astro.props;
+
+const isBrowser = typeof window !== 'undefined';
+let showSnakes = propShowSnakes ?? true;
+let showLadders = propShowLadders ?? true;
+if (isBrowser) {
+  const boardContainer = document.getElementById('board-container');
+  if (boardContainer) {
+    showSnakes = boardContainer.getAttribute('data-show-snakes') === 'true';
+    showLadders = boardContainer.getAttribute('data-show-ladders') === 'true';
+  }
+}
+
+// Create board squares (10x10 grid) - position 1 at bottom left, 100 at top right
+const squares = [];
+for (let row = 9; row >= 0; row--) {
+  const rowSquares = [];
+  for (let col = 0; col < 10; col++) {
+    const position = row * 10 + col + 1;
+    rowSquares.push(position);
+  }
+  // Reverse every other row to create the snake pattern
+  if (row % 2 === 1) {
+    rowSquares.reverse();
+  }
+  squares.push(...rowSquares);
+}
+
+// Get positions for visual elements
+const getSquarePosition = (squareNumber: number) => {
+  const index = squares.indexOf(squareNumber);
+  if (index === -1) return null;
+  const row = Math.floor(index / 10);
+  const col = index % 10;
+  return { row, col, x: col * 48, y: row * 48 };
+};
+
+// Generate visual elements for snakes and ladders
+const visualElements = [];
+gameState.snakes.forEach(snake => {
+  const startPos = getSquarePosition(snake.start);
+  const endPos = getSquarePosition(snake.end);
+  if (startPos && endPos) {
+    visualElements.push({
+      type: 'snake',
+      start: snake.start,
+      end: snake.end,
+      startPos,
+      endPos
+    });
+  }
+});
+
+gameState.ladders.forEach(ladder => {
+  const startPos = getSquarePosition(ladder.start);
+  const endPos = getSquarePosition(ladder.end);
+  if (startPos && endPos) {
+    visualElements.push({
+      type: 'ladder',
+      start: ladder.start,
+      end: ladder.end,
+      startPos,
+      endPos
+    });
+  }
+});
+
+// Add this after Astro.props and before the main render:
+if (typeof window !== 'undefined') {
+  window.addEventListener('astro:after-swap', () => {
+    const root = document.querySelector('.game-board');
+    if (root) {
+      root.addEventListener('toggleSnakes', () => toggleSnakes());
+      root.addEventListener('toggleLadders', () => toggleLadders());
+    }
+  });
+  // For initial load
+  setTimeout(() => {
+    const root = document.querySelector('.game-board');
+    if (root) {
+      root.addEventListener('toggleSnakes', () => toggleSnakes());
+      root.addEventListener('toggleLadders', () => toggleLadders());
+    }
+  }, 0);
+}
+
+if (typeof window !== 'undefined') {
+  // Listen for the custom event to update snakes/ladders display
+  document.addEventListener('updateShowSnakesLadders', (e) => {
+    if (e.detail) {
+      showSnakes = e.detail.showSnakes;
+      showLadders = e.detail.showLadders;
+      // Update the board display
+      updateBoardDisplay();
+    }
+  });
+
+  // Listen for the updateVisibility event on the board container
+  setTimeout(() => {
+    const boardContainer = document.getElementById('board-container');
+    if (boardContainer) {
+      boardContainer.addEventListener('updateVisibility', (e) => {
+        if (e.detail) {
+          showSnakes = e.detail.showSnakes;
+          showLadders = e.detail.showLadders;
+          updateBoardDisplay();
+        }
+      });
+    }
+  }, 0);
+}
+---
+
+<div class="game-board rounded-xl shadow-2xl p-6 max-w-3xl mx-auto bg-gradient-to-br from-cyan-400 via-pink-400 to-orange-400 dark:from-violet-600 dark:via-fuchsia-600 dark:to-cyan-500">
+  <div class="board-container relative">
+    <div class="board-grid bg-amber-300 dark:bg-slate-600 p-1 rounded-lg">
+      {squares.map((squareNumber) => {
+        const isSnake = showSnakes && isSnakePosition(squareNumber, gameState.snakes);
+        const isLadder = showLadders && isLadderPosition(squareNumber, gameState.ladders);
+        const playersHere = gameState.players.filter(p => p.position === squareNumber);
+        const isCurrentPlayer = gameState.players[gameState.currentPlayerIndex]?.position === squareNumber;
+        
+        return (
+          <div 
+            class={`square relative w-12 h-12 flex items-center justify-center text-xs font-bold transition-all duration-200 ${
+              isSnake ? 'bg-red-200 dark:bg-red-800 border-red-500 dark:border-red-600' : 
+              isLadder ? 'bg-green-200 dark:bg-green-800 border-green-500 dark:border-green-600' : 
+              'bg-white dark:bg-gray-800 border-gray-300 dark:border-gray-600'
+            } ${isCurrentPlayer ? 'ring-4 ring-blue-500 ring-opacity-75 shadow-lg' : ''}`}
+            data-square={squareNumber}
+          >
+            <span class="text-gray-700 dark:text-black z-10 relative">{squareNumber}</span>
+            
+            {/* Player pieces */}
+            {playersHere.map((player, index) => (
+              <div 
+                class={`player-piece absolute w-4 h-4 rounded-full border-2 border-white dark:border-gray-800 shadow-lg transition-all duration-300 z-20 ${
+                  index === 0 ? 'top-0.5 left-0.5' :
+                  index === 1 ? 'top-0.5 right-0.5' :
+                  index === 2 ? 'bottom-0.5 left-0.5' :
+                  'bottom-0.5 right-0.5'
+                } ${player.isWinner ? 'animate-pulse' : ''}`}
+                style={`background-color: ${player.color}`}
+                title={`${player.name} (Position: ${player.position})`}
+                data-player-id={player.id}
+              >
+              </div>
+            ))}
+          </div>
+        );
+      })}
+    </div>
+    
+    {/* Visual Snake and Ladder Overlays */}
+    <svg class="absolute top-0 left-0 w-full h-full pointer-events-none z-5" viewBox="0 0 480 480">
+      {visualElements.map((element) => {
+        if (element.type === 'snake' && !showSnakes) return null;
+        if (element.type === 'ladder' && !showLadders) return null;
+        if (element.type === 'snake') {
+          const startX = element.startPos.x + 24;
+          const startY = element.startPos.y + 24;
+          const endX = element.endPos.x + 24;
+          const endY = element.endPos.y + 24;
+          const midX = (startX + endX) / 2;
+          const midY = (startY + endY) / 2 + 30;
+          const angle = Math.atan2(endY - startY, endX - startX);
+          const tailAngle = Math.atan2(startY - endY, startX - endX);
+          return (
+            <g>
+              {/* Snake body with gradient */}
+              <defs>
+                <linearGradient id={`snake-gradient-${element.start}`} x1="0%" y1="0%" x2="100%" y2="100%">
+                  <stop offset="0%" style="stop-color:#dc2626;stop-opacity:1" />
+                  <stop offset="50%" style="stop-color:#b91c1c;stop-opacity:1" />
+                  <stop offset="100%" style="stop-color:#991b1b;stop-opacity:1" />
+                </linearGradient>
+                <filter id={`snake-shadow-${element.start}`}>
+                  <feDropShadow dx="2" dy="2" stdDeviation="3" flood-color="#000000" flood-opacity="0.3"/>
+                </filter>
+              </defs>
+              {/* Snake body path */}
+              <path 
+                d={`M ${startX} ${startY} Q ${midX} ${midY} ${endX} ${endY}`}
+                stroke={`url(#snake-gradient-${element.start})`} 
+                stroke-width="8" 
+                fill="none"
+                stroke-linecap="round"
+                filter={`url(#snake-shadow-${element.start})`}
+              />
+              {/* Snake scales pattern */}
+              <path 
+                d={`M ${startX} ${startY} Q ${midX} ${midY} ${endX} ${endY}`}
+                stroke="#991b1b" 
+                stroke-width="6" 
+                fill="none"
+                stroke-linecap="round"
+                stroke-dasharray="4,8"
+                opacity="0.7"
+              />
+              {/* Snake head (at start) */}
+              <g transform={`translate(${startX}, ${startY}) rotate(${angle * 180 / Math.PI})`}>
+                <ellipse cx="0" cy="0" rx="13" ry="9" fill={`url(#snake-gradient-${element.start})`} filter={`url(#snake-shadow-${element.start})`}/>
+                <ellipse cx="0" cy="0" rx="11" ry="7" fill="#b91c1c"/>
+                {/* Eyes */}
+                <ellipse cx="-5.5" cy="-3.5" rx="3.2" ry="3.2" fill="#fff" stroke="#991b1b" stroke-width="0.7"/>
+                <ellipse cx="5.5" cy="-3.5" rx="3.2" ry="3.2" fill="#fff" stroke="#991b1b" stroke-width="0.7"/>
+                {/* Pupils */}
+                <ellipse cx="-5.5" cy="-2.5" rx="1.3" ry="1.3" fill="#000"/>
+                <ellipse cx="5.5" cy="-2.5" rx="1.3" ry="1.3" fill="#000"/>
+                {/* Eye highlights */}
+                <ellipse cx="-6.1" cy="-3.7" rx="0.4" ry="0.4" fill="#fff"/>
+                <ellipse cx="4.9" cy="-3.7" rx="0.4" ry="0.4" fill="#fff"/>
+                {/* Eyebrows */}
+                <rect x="-7.5" y="-6.5" width="4" height="1" rx="0.5" fill="#991b1b" transform="rotate(-10 -7.5 -6.5)"/>
+                <rect x="3.5" y="-6.5" width="4" height="1" rx="0.5" fill="#991b1b" transform="rotate(10 3.5 -6.5)"/>
+                {/* Tongue */}
+                <path d="M 0 6 Q 0 13 0 18 M 0 18 Q -2 21 0 19 Q 2 21 0 18" stroke="#ff0000" stroke-width="1.2" fill="none"/>
+                <path d="M 0 13 L -2 18 M 0 13 L 2 18" stroke="#ff0000" stroke-width="1" fill="none"/>
+              </g>
+              {/* Snake tail (at end) */}
+              <g transform={`translate(${endX}, ${endY}) rotate(${tailAngle * 180 / Math.PI})`}>
+                <ellipse cx="0" cy="0" rx="6" ry="4" fill={`url(#snake-gradient-${element.start})`} filter={`url(#snake-shadow-${element.start})`}/>
+                <ellipse cx="0" cy="0" rx="4" ry="2" fill="#b91c1c"/>
+              </g>
+            </g>
+          );
+        } else if (element.type === 'ladder') {
+          // Create realistic cartoon ladder
+          const startX = element.startPos.x + 24;
+          const endX = element.endPos.x + 24;
+          const endY = element.endPos.y + 24;
+          
+          const rungCount = 8;
+          const rungs = [];
+          for (let i = 1; i < rungCount; i++) {
+            const t = i / rungCount;
+            const x = startX + (endX - startX) * t;
+            const y = endY;
+            rungs.push({ x, y });
+          }
+          
+          return (
+            <g>
+              <defs>
+                <linearGradient id={`ladder-gradient-${element.start}`} x1="0%" y1="0%" x2="100%" y2="100%">
+                  <stop offset="0%" style="stop-color:#16a34a;stop-opacity:1" />
+                  <stop offset="50%" style="stop-color:#15803d;stop-opacity:1" />
+                  <stop offset="100%" style="stop-color:#166534;stop-opacity:1" />
+                </linearGradient>
+                <filter id={`ladder-shadow-${element.start}`}>
+                  <feDropShadow dx="1" dy="1" stdDeviation="2" flood-color="#000000" flood-opacity="0.2"/>
+                </filter>
+              </defs>
+              
+              {/* Ladder side rails */}
+              <line 
+                x1={startX - 6} y1={endY} x2={endX - 6} y2={endY}
+                stroke="url(#ladder-gradient-${element.start})" 
+                stroke-width="6" 
+                stroke-linecap="round"
+                filter={`url(#ladder-shadow-${element.start})`}
+              />
+              <line 
+                x1={startX + 6} y1={endY} x2={endX + 6} y2={endY}
+                stroke="url(#ladder-gradient-${element.start})" 
+                stroke-width="6" 
+                stroke-linecap="round"
+                filter={`url(#ladder-shadow-${element.start})`}
+              />
+              
+              {/* Ladder rungs */}
+              {rungs.map((rung, index) => (
+                <line 
+                  x1={rung.x - 8} y1={rung.y} x2={rung.x + 8} y2={rung.y}
+                  stroke="#15803d" 
+                  stroke-width="3" 
+                  stroke-linecap="round"
+                  filter={`url(#ladder-shadow-${element.start})`}
+                />
+              ))}
+              
+              {/* Ladder top and bottom caps */}
+              <rect x={startX - 8} y={endY - 2} width="16" height="4" fill="#166534" rx="2" filter={`url(#ladder-shadow-${element.start})`}/>
+              <rect x={endX - 8} y={endY - 2} width="16" height="4" fill="#166534" rx="2" filter={`url(#ladder-shadow-${element.start})`}/>
+              
+              {/* Wood grain texture */}
+              <line 
+                x1={startX - 6} y1={endY} x2={endX - 6} y2={endY}
+                stroke="#166534" 
+                stroke-width="4" 
+                stroke-linecap="round"
+                stroke-dasharray="2,4"
+                opacity="0.3"
+              />
+              <line 
+                x1={startX + 6} y1={endY} x2={endX + 6} y2={endY}
+                stroke="#166534" 
+                stroke-width="4" 
+                stroke-linecap="round"
+                stroke-dasharray="2,4"
+                opacity="0.3"
+              />
+            </g>
+          );
+        }
+      })}
+    </svg>
+  </div>
+  
+  {/* Player legend */}
+  <div class="mt-6 flex flex-wrap gap-3 justify-center">
+    {gameState.players.map((player) => (
+      <div class="flex items-center gap-2 text-sm bg-white dark:bg-white px-3 py-2 rounded-lg shadow-md border border-gray-200 dark:border-gray-600">
+        <div 
+          class="w-4 h-4 rounded-full border-2 border-gray-300 dark:border-gray-600 shadow-sm"
+          style={`background-color: ${player.color}`}
+        ></div>
+        <span class="text-gray-700 dark:text-black font-medium">
+          {player.name} {player.isWinner ? '(Winner!)' : ''}
+        </span>
+      </div>
+    ))}
+  </div>
+</div>
+
+<script>
+  // Board interaction logic
+  function updateBoard(gameState, showSnakesOverride, showLaddersOverride) {
+    if (!gameState || !gameState.players) {
+      return;
+    }
+    
+    // Clear all existing player pieces
+    const existingPieces = document.querySelectorAll('.player-piece');
+    existingPieces.forEach(piece => piece.remove());
+    
+    // Remove current player highlighting
+    const squares = document.querySelectorAll('.square');
+    squares.forEach(square => {
+      square.classList.remove('ring-4', 'ring-blue-500', 'ring-opacity-75');
+    });
+    
+    // Update square colors based on new snake and ladder positions
+    squares.forEach(square => {
+      const squareNumber = parseInt(square.getAttribute('data-square'));
+      const isSnake = gameState.snakes.some(snake => snake.start === squareNumber);
+      const isLadder = gameState.ladders.some(ladder => ladder.start === squareNumber);
+      
+      // Remove existing color classes
+      square.classList.remove(
+        'bg-red-200', 'dark:bg-red-800', 'border-red-500', 'dark:border-red-600',
+        'bg-green-200', 'dark:bg-green-800', 'border-green-500', 'dark:border-green-600',
+        'bg-white', 'dark:bg-gray-800', 'border-gray-300', 'dark:border-gray-600'
+      );
+      
+      // Add appropriate color classes
+      if (isSnake) {
+        square.classList.add('bg-red-200', 'dark:bg-red-800', 'border-red-500', 'dark:border-red-600');
+      } else if (isLadder) {
+        square.classList.add('bg-green-200', 'dark:bg-green-800', 'border-green-500', 'dark:border-green-600');
+      } else {
+        square.classList.add('bg-white', 'dark:bg-gray-800', 'border-gray-300', 'dark:border-gray-600');
+      }
+    });
+    
+    // Update visual snake and ladder overlays
+    const boardContainer = document.getElementById('board-container');
+    let showSnakes = showSnakesOverride;
+    let showLadders = showLaddersOverride;
+    if (typeof showSnakes === 'undefined' && boardContainer) {
+      showSnakes = boardContainer.getAttribute('data-show-snakes') === 'true';
+    }
+    if (typeof showLadders === 'undefined' && boardContainer) {
+      showLadders = boardContainer.getAttribute('data-show-ladders') === 'true';
+    }
+    updateSnakeAndLadderVisuals(gameState, showSnakes, showLadders);
+    
+    // Add player pieces to their current positions
+    gameState.players.forEach((player, playerIndex) => {
+      const square = document.querySelector(`[data-square="${player.position}"]`);
+      if (square) {
+        // Add current player highlighting
+        if (playerIndex === gameState.currentPlayerIndex) {
+          square.classList.add('ring-4', 'ring-blue-500', 'ring-opacity-75');
+        }
+        
+        // Count how many players are on this square
+        const playersOnSquare = gameState.players.filter(p => p.position === player.position);
+        const playerIndexOnSquare = playersOnSquare.findIndex(p => p.id === player.id);
+        
+        const piece = document.createElement('div');
+        piece.className = `player-piece absolute w-4 h-4 rounded-full border-2 border-white dark:border-gray-800 shadow-lg transition-all duration-300`;
+        piece.style.backgroundColor = player.color;
+        piece.title = `${player.name} (Position: ${player.position})`;
+        piece.setAttribute('data-player-id', player.id.toString());
+        
+        // Add winner animation
+        if (player.isWinner) {
+          piece.classList.add('animate-pulse');
+        }
+        
+        // Position the piece based on how many players are on this square
+        switch (playerIndexOnSquare) {
+          case 0:
+            piece.classList.add('top-0.5', 'left-0.5');
+            break;
+          case 1:
+            piece.classList.add('top-0.5', 'right-0.5');
+            break;
+          case 2:
+            piece.classList.add('bottom-0.5', 'left-0.5');
+            break;
+          case 3:
+            piece.classList.add('bottom-0.5', 'right-0.5');
+            break;
+        }
+        
+        square.appendChild(piece);
+      }
+    });
+    
+    // Update player legend
+    updatePlayerLegend(gameState);
+  }
+  
+  function updateSnakeAndLadderVisuals(gameState, showSnakes = true, showLadders = true) {
+    // Clear existing SVG content
+    const svg = document.querySelector('.board-container svg');
+    if (!svg) return;
+    
+    svg.innerHTML = '';
+    
+    // Generate visual elements for snakes and ladders
+    const visualElements = [];
+    
+    // Add snakes
+    gameState.snakes.forEach(snake => {
+      const startPos = getSquarePosition(snake.start);
+      const endPos = getSquarePosition(snake.end);
+      if (startPos && endPos) {
+        visualElements.push({
+          type: 'snake',
+          start: snake.start,
+          end: snake.end,
+          startPos,
+          endPos
+        });
+      }
+    });
+    
+    // Add ladders
+    gameState.ladders.forEach(ladder => {
+      const startPos = getSquarePosition(ladder.start);
+      const endPos = getSquarePosition(ladder.end);
+      if (startPos && endPos) {
+        visualElements.push({
+          type: 'ladder',
+          start: ladder.start,
+          end: ladder.end,
+          startPos,
+          endPos
+        });
+      }
+    });
+    
+    // Create SVG elements for each visual element
+    visualElements.forEach(element => {
+      if (element.type === 'snake' && showSnakes) {
+        createSnakeVisual(svg, element);
+      } else if (element.type === 'ladder' && showLadders) {
+        createLadderVisual(svg, element);
+      }
+    });
+  }
+  
+  function getSquarePosition(squareNumber) {
+    const squares = [];
+    for (let row = 9; row >= 0; row--) {
+      const rowSquares = [];
+      for (let col = 0; col < 10; col++) {
+        const position = row * 10 + col + 1;
+        rowSquares.push(position);
+      }
+      // Reverse every other row to create the snake pattern
+      if (row % 2 === 1) {
+        rowSquares.reverse();
+      }
+      squares.push(...rowSquares);
+    }
+    
+    const index = squares.indexOf(squareNumber);
+    if (index === -1) return null;
+    const row = Math.floor(index / 10);
+    const col = index % 10;
+    return { row, col, x: col * 48, y: row * 48 };
+  }
+  
+  function createSnakeVisual(svg, element) {
+    const startX = element.startPos.x + 24;
+    const startY = element.startPos.y + 24;
+    const endX = element.endPos.x + 24;
+    const endY = element.endPos.y + 24;
+    const midX = (startX + endX) / 2;
+    const midY = (startY + endY) / 2 + 30;
+    const angle = Math.atan2(endY - startY, endX - startX);
+    const tailAngle = Math.atan2(startY - endY, startX - endX);
+    const snakeGroup = document.createElementNS('http://www.w3.org/2000/svg', 'g');
+
+    // Snake body path
+    const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+    path.setAttribute('d', `M ${startX} ${startY} Q ${midX} ${midY} ${endX} ${endY}`);
+    path.setAttribute('stroke', '#dc2626');
+    path.setAttribute('stroke-width', '8');
+    path.setAttribute('fill', 'none');
+    path.setAttribute('stroke-linecap', 'round');
+    path.setAttribute('filter', 'drop-shadow(2px 2px 3px rgba(0,0,0,0.3))');
+    snakeGroup.appendChild(path);
+
+    // Scales pattern
+    const scales = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+    scales.setAttribute('d', `M ${startX} ${startY} Q ${midX} ${midY} ${endX} ${endY}`);
+    scales.setAttribute('stroke', '#991b1b');
+    scales.setAttribute('stroke-width', '6');
+    scales.setAttribute('fill', 'none');
+    scales.setAttribute('stroke-linecap', 'round');
+    scales.setAttribute('stroke-dasharray', '4,8');
+    scales.setAttribute('opacity', '0.7');
+    snakeGroup.appendChild(scales);
+
+    // Head (at start)
+    const headGroup = document.createElementNS('http://www.w3.org/2000/svg', 'g');
+    headGroup.setAttribute('transform', `translate(${startX}, ${startY}) rotate(${angle * 180 / Math.PI})`);
+    // Head shape
+    const head1 = document.createElementNS('http://www.w3.org/2000/svg', 'ellipse');
+    head1.setAttribute('cx', '0'); head1.setAttribute('cy', '0'); head1.setAttribute('rx', '13'); head1.setAttribute('ry', '9');
+    head1.setAttribute('fill', '#dc2626');
+    head1.setAttribute('filter', 'drop-shadow(2px 2px 3px rgba(0,0,0,0.3))');
+    headGroup.appendChild(head1);
+    const head2 = document.createElementNS('http://www.w3.org/2000/svg', 'ellipse');
+    head2.setAttribute('cx', '0'); head2.setAttribute('cy', '0'); head2.setAttribute('rx', '11'); head2.setAttribute('ry', '7');
+    head2.setAttribute('fill', '#b91c1c');
+    headGroup.appendChild(head2);
+    // Eyes
+    const eyeL = document.createElementNS('http://www.w3.org/2000/svg', 'ellipse');
+    eyeL.setAttribute('cx', '-5.5'); eyeL.setAttribute('cy', '-3.5'); eyeL.setAttribute('rx', '3.2'); eyeL.setAttribute('ry', '3.2');
+    eyeL.setAttribute('fill', '#fff'); eyeL.setAttribute('stroke', '#991b1b'); eyeL.setAttribute('stroke-width', '0.7');
+    headGroup.appendChild(eyeL);
+    const eyeR = document.createElementNS('http://www.w3.org/2000/svg', 'ellipse');
+    eyeR.setAttribute('cx', '5.5'); eyeR.setAttribute('cy', '-3.5'); eyeR.setAttribute('rx', '3.2'); eyeR.setAttribute('ry', '3.2');
+    eyeR.setAttribute('fill', '#fff'); eyeR.setAttribute('stroke', '#991b1b'); eyeR.setAttribute('stroke-width', '0.7');
+    headGroup.appendChild(eyeR);
+    // Pupils
+    const pupilL = document.createElementNS('http://www.w3.org/2000/svg', 'ellipse');
+    pupilL.setAttribute('cx', '-5.5'); pupilL.setAttribute('cy', '-2.5'); pupilL.setAttribute('rx', '1.3'); pupilL.setAttribute('ry', '1.3');
+    pupilL.setAttribute('fill', '#000');
+    headGroup.appendChild(pupilL);
+    const pupilR = document.createElementNS('http://www.w3.org/2000/svg', 'ellipse');
+    pupilR.setAttribute('cx', '5.5'); pupilR.setAttribute('cy', '-2.5'); pupilR.setAttribute('rx', '1.3'); pupilR.setAttribute('ry', '1.3');
+    pupilR.setAttribute('fill', '#000');
+    headGroup.appendChild(pupilR);
+    // Eye highlights
+    const highlightL = document.createElementNS('http://www.w3.org/2000/svg', 'ellipse');
+    highlightL.setAttribute('cx', '-6.1'); highlightL.setAttribute('cy', '-3.7'); highlightL.setAttribute('rx', '0.4'); highlightL.setAttribute('ry', '0.4');
+    highlightL.setAttribute('fill', '#fff');
+    headGroup.appendChild(highlightL);
+    const highlightR = document.createElementNS('http://www.w3.org/2000/svg', 'ellipse');
+    highlightR.setAttribute('cx', '4.9'); highlightR.setAttribute('cy', '-3.7'); highlightR.setAttribute('rx', '0.4'); highlightR.setAttribute('ry', '0.4');
+    highlightR.setAttribute('fill', '#fff');
+    headGroup.appendChild(highlightR);
+    // Eyebrows
+    const browL = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
+    browL.setAttribute('x', '-7.5'); browL.setAttribute('y', '-6.5'); browL.setAttribute('width', '4'); browL.setAttribute('height', '1'); browL.setAttribute('rx', '0.5');
+    browL.setAttribute('fill', '#991b1b'); browL.setAttribute('transform', 'rotate(-10 -7.5 -6.5)');
+    headGroup.appendChild(browL);
+    const browR = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
+    browR.setAttribute('x', '3.5'); browR.setAttribute('y', '-6.5'); browR.setAttribute('width', '4'); browR.setAttribute('height', '1'); browR.setAttribute('rx', '0.5');
+    browR.setAttribute('fill', '#991b1b'); browR.setAttribute('transform', 'rotate(10 3.5 -6.5)');
+    headGroup.appendChild(browR);
+    // Tongue
+    const tongue1 = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+    tongue1.setAttribute('d', 'M 0 6 Q 0 13 0 18 M 0 18 Q -2 21 0 19 Q 2 21 0 18');
+    tongue1.setAttribute('stroke', '#ff0000');
+    tongue1.setAttribute('stroke-width', '1.2');
+    tongue1.setAttribute('fill', 'none');
+    headGroup.appendChild(tongue1);
+    const tongue2 = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+    tongue2.setAttribute('d', 'M 0 13 L -2 18 M 0 13 L 2 18');
+    tongue2.setAttribute('stroke', '#ff0000');
+    tongue2.setAttribute('stroke-width', '1');
+    tongue2.setAttribute('fill', 'none');
+    headGroup.appendChild(tongue2);
+    snakeGroup.appendChild(headGroup);
+
+    // Tail (at end)
+    const tailGroup = document.createElementNS('http://www.w3.org/2000/svg', 'g');
+    tailGroup.setAttribute('transform', `translate(${endX}, ${endY}) rotate(${tailAngle * 180 / Math.PI})`);
+    const tail1 = document.createElementNS('http://www.w3.org/2000/svg', 'ellipse');
+    tail1.setAttribute('cx', '0'); tail1.setAttribute('cy', '0'); tail1.setAttribute('rx', '6'); tail1.setAttribute('ry', '4');
+    tail1.setAttribute('fill', '#dc2626');
+    tail1.setAttribute('filter', 'drop-shadow(2px 2px 3px rgba(0,0,0,0.3))');
+    tailGroup.appendChild(tail1);
+    const tail2 = document.createElementNS('http://www.w3.org/2000/svg', 'ellipse');
+    tail2.setAttribute('cx', '0'); tail2.setAttribute('cy', '0'); tail2.setAttribute('rx', '4'); tail2.setAttribute('ry', '2');
+    tail2.setAttribute('fill', '#b91c1c');
+    tailGroup.appendChild(tail2);
+    snakeGroup.appendChild(tailGroup);
+
+    svg.appendChild(snakeGroup);
+  }
+  
+  function createLadderVisual(svg, element) {
+    const startX = element.startPos.x + 24;
+    const startY = element.startPos.y + 24;
+    const endX = element.endPos.x + 24;
+    const endY = element.endPos.y + 24;
+    
+    const ladderGroup = document.createElementNS('http://www.w3.org/2000/svg', 'g');
+    
+    // Create ladder side rails
+    const leftRail = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+    leftRail.setAttribute('x1', startX - 6);
+    leftRail.setAttribute('y1', startY);
+    leftRail.setAttribute('x2', endX - 6);
+    leftRail.setAttribute('y2', endY);
+    leftRail.setAttribute('stroke', '#16a34a');
+    leftRail.setAttribute('stroke-width', '6');
+    leftRail.setAttribute('stroke-linecap', 'round');
+    leftRail.setAttribute('filter', 'drop-shadow(1px 1px 2px rgba(0,0,0,0.2))');
+    
+    const rightRail = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+    rightRail.setAttribute('x1', startX + 6);
+    rightRail.setAttribute('y1', startY);
+    rightRail.setAttribute('x2', endX + 6);
+    rightRail.setAttribute('y2', endY);
+    rightRail.setAttribute('stroke', '#16a34a');
+    rightRail.setAttribute('stroke-width', '6');
+    rightRail.setAttribute('stroke-linecap', 'round');
+    rightRail.setAttribute('filter', 'drop-shadow(1px 1px 2px rgba(0,0,0,0.2))');
+    
+    ladderGroup.appendChild(leftRail);
+    ladderGroup.appendChild(rightRail);
+    
+    // Add ladder rungs
+    const rungCount = 8;
+    for (let i = 1; i < rungCount; i++) {
+      const t = i / rungCount;
+      const x = startX + (endX - startX) * t;
+      const y = startY + (endY - startY) * t;
+      
+      const rung = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+      rung.setAttribute('x1', x - 8);
+      rung.setAttribute('y1', y);
+      rung.setAttribute('x2', x + 8);
+      rung.setAttribute('y2', y);
+      rung.setAttribute('stroke', '#15803d');
+      rung.setAttribute('stroke-width', '3');
+      rung.setAttribute('stroke-linecap', 'round');
+      rung.setAttribute('filter', 'drop-shadow(1px 1px 2px rgba(0,0,0,0.2))');
+      
+      ladderGroup.appendChild(rung);
+    }
+    
+    svg.appendChild(ladderGroup);
+  }
+  
+  function updatePlayerLegend(gameState) {
+    const legendContainer = document.querySelector('.game-board > div:last-child');
+    if (legendContainer && gameState.players) {
+      legendContainer.innerHTML = '';
+      
+      gameState.players.forEach((player) => {
+        const playerItem = document.createElement('div');
+        playerItem.className = 'flex items-center gap-2 text-sm bg-white dark:bg-white px-3 py-2 rounded-lg shadow-md border border-gray-200 dark:border-gray-600';
+        
+        const colorDot = document.createElement('div');
+        colorDot.className = 'w-4 h-4 rounded-full border-2 border-gray-300 dark:border-gray-600 shadow-sm';
+        colorDot.style.backgroundColor = player.color;
+        
+        const playerName = document.createElement('span');
+        playerName.className = 'text-gray-700 dark:text-black font-medium';
+        playerName.textContent = `${player.name} ${player.isWinner ? '(Winner!)' : ''}`;
+        
+        playerItem.appendChild(colorDot);
+        playerItem.appendChild(playerName);
+        legendContainer.appendChild(playerItem);
+      });
+    }
+  }
+  
+  // Add visual feedback for snake bites and ladder climbs
+  function showSnakeBite(playerId, fromPosition, toPosition) {
+    const playerPiece = document.querySelector(`[data-player-id="${playerId}"]`);
+    if (playerPiece) {
+      playerPiece.classList.add('animate-bounce');
+      playerPiece.style.filter = 'hue-rotate(0deg) saturate(2)';
+      
+      // Show snake bite effect
+      setTimeout(() => {
+        playerPiece.classList.remove('animate-bounce');
+        playerPiece.style.filter = '';
+      }, 1000);
+    }
+  }
+  
+  function showLadderClimb(playerId, fromPosition, toPosition) {
+    const playerPiece = document.querySelector(`[data-player-id="${playerId}"]`);
+    if (playerPiece) {
+      playerPiece.classList.add('animate-bounce');
+      playerPiece.style.filter = 'brightness(1.5) saturate(1.5)';
+      
+      // Show ladder climb effect
+      setTimeout(() => {
+        playerPiece.classList.remove('animate-bounce');
+        playerPiece.style.filter = '';
+      }, 1000);
+    }
+  }
+  
+  // Expose functions globally
+  window.updateBoard = updateBoard;
+  window.showSnakeBite = showSnakeBite;
+  window.showLadderClimb = showLadderClimb;
+
+  if (typeof window !== 'undefined') {
+    // Listen for the custom event to update snakes/ladders display
+    document.addEventListener('updateShowSnakesLadders', (e) => {
+      if (e.detail) {
+        showSnakes = e.detail.showSnakes;
+        showLadders = e.detail.showLadders;
+        // Update the board display
+        updateBoardDisplay();
+      }
+    });
+  }
+
+  function updateBoardDisplay() {
+    // Get the current showSnakes/showLadders from the board container
+    const boardContainer = document.getElementById('board-container');
+    let showSnakes = true;
+    let showLadders = true;
+    if (boardContainer) {
+      showSnakes = boardContainer.getAttribute('data-show-snakes') === 'true';
+      showLadders = boardContainer.getAttribute('data-show-ladders') === 'true';
+    }
+    if (typeof window !== 'undefined' && window.updateBoard && typeof window.updateBoard === 'function') {
+      window.updateBoard(gameState, showSnakes, showLadders);
+    }
+    // Optionally, force a redraw of the SVG overlays if needed
+    if (typeof updateSnakeAndLadderVisuals === 'function') {
+      updateSnakeAndLadderVisuals(gameState, showSnakes, showLadders);
+    }
+  }
+</script>
+
+<style>
+  .game-board {
+    box-shadow: 
+      0 20px 25px -5px rgba(0, 0, 0, 0.1),
+      0 10px 10px -5px rgba(0, 0, 0, 0.04),
+      inset 0 1px 0 rgba(255, 255, 255, 0.1);
+  }
+  
+  .dark .game-board {
+    box-shadow: 
+      0 20px 25px -5px rgba(0, 0, 0, 0.4),
+      0 10px 10px -5px rgba(0, 0, 0, 0.3),
+      inset 0 1px 0 rgba(255, 255, 255, 0.05);
+  }
+  
+  .board-container {
+    position: relative;
+    width: 480px;
+    height: 480px;
+    margin: 0 auto;
+  }
+  
+  .board-grid {
+    display: grid;
+    grid-template-columns: repeat(10, 1fr);
+    grid-template-rows: repeat(10, 1fr);
+    gap: 0;
+    width: 100%;
+    height: 100%;
+    box-shadow: 
+      inset 0 2px 4px rgba(0, 0, 0, 0.1),
+      0 4px 6px -1px rgba(0, 0, 0, 0.1);
+    border-radius: 8px;
+    overflow: hidden;
+  }
+  
+  .dark .board-grid {
+    box-shadow: 
+      inset 0 2px 4px rgba(0, 0, 0, 0.3),
+      0 4px 6px -1px rgba(0, 0, 0, 0.3);
+    border: 2px solid #475569;
+  }
+  
+  .square {
+    position: relative;
+    width: 100%;
+    height: 100%;
+    box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.1);
+    transition: all 0.3s ease;
+    margin: 0;
+    border-radius: 0;
+    border: 1px solid #d97706;
+  }
+  
+  .dark .square {
+    border: 1px solid #475569;
+  }
+  
+  .square:hover {
+    transform: scale(1.05);
+    z-index: 10;
+    box-shadow: 
+      0 10px 15px -3px rgba(0, 0, 0, 0.1),
+      0 4px 6px -2px rgba(0, 0, 0, 0.05),
+      inset 0 2px 4px rgba(0, 0, 0, 0.1);
+  }
+  
+  .dark .square:hover {
+    box-shadow: 
+      0 10px 15px -3px rgba(0, 0, 0, 0.4),
+      0 4px 6px -2px rgba(0, 0, 0, 0.3),
+      inset 0 2px 4px rgba(0, 0, 0, 0.2);
+  }
+  
+  .square:not(.bg-red-200):not(.bg-green-200):not(.dark .bg-red-800):not(.dark .bg-green-800) {
+    background: linear-gradient(145deg, #ffffff, #f3f4f6);
+  }
+  
+  .dark .square:not(.bg-red-800):not(.bg-green-800) {
+    background: linear-gradient(145deg, #1f2937, #111827);
+  }
+  
+  .square.bg-red-200,
+  .square.bg-red-800 {
+    border-color: #dc2626;
+  }
+  
+  .square.bg-green-200,
+  .square.bg-green-800 {
+    border-color: #16a34a;
+  }
+  
+  .player-piece {
+    transition: all 0.3s ease;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+  }
+  
+  .player-piece:hover {
+    transform: scale(1.3);
+    z-index: 30;
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.3);
+  }
+  
+  @keyframes pulse {
+    0%, 100% {
+      opacity: 1;
+      transform: scale(1);
+    }
+    50% {
+      opacity: 0.7;
+      transform: scale(1.05);
+    }
+  }
+  
+  .animate-pulse {
+    animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+  }
+  
+  /* Snake and Ladder visual effects */
+  svg {
+    z-index: 5;
+  }
+  
+  svg path, svg line {
+    filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.3));
+  }
+</style> 
